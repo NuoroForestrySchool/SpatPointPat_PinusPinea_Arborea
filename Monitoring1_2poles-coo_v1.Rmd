@@ -1,0 +1,119 @@
+---
+title: 'Monitoring forest regeneration - 1: processing ''2 poles coordinates'''
+output:
+  html_document: default
+  html_notebook: default
+---
+
+# Introduction
+2014 - Arborea - Pinus pinea plantation
+4 (50 m * 50 m) plots
+Each plot is divided in (10 m side) squared subplots
+identified using the following scheme:
+
+ "A5" "B5" "C5" "D5" "E5"  
+ "A4" "B4" "C4" "D4" "E4"  
+ "A3" "B3" "C3" "D3" "E3"  
+ "A2" "B2" "C2" "D2" "E2"  
+ "A1" "B1" "C1" "D1" "E1"  
+
+In each subplot, point positions have been registered measuring the distances from the extremes of one side.
+Let 'a' be the side used as reference for the positions measurements.
+We will define a local cartesian sistem for each subplot using 'a' as 'x axis' and the left extreme of 'a', say 'A', as origin (0,0)
+The coordinates of the point on opposite extreme of 'a', say 'B', are hence (10, 0)
+For eac registered point, say 'C', the distances (AC), say 'c', and (BC), say 'b', have been measured and registered.
+To compute local cartesian coordinates of point 'C', say (lx, ly), one can exploit Erone's formula, actually reversing it.
+(see: https://it.wikipedia.org/wiki/Formula_di_Erone 'Dimostrazione alternativa')
+\[
+\begin{eqnarray}
+x & = & \frac {(a^{2}-b^{2}+c^{2})} {2a} \\
+y & = & \frac {\sqrt{(4a^{2}c^{2}-(a^{2}-b^{2}+c^{2})^{2})}} {2a}
+\end{eqnarray}
+\]
+
+## Access to data
+```{r read_data}
+library(tidyverse)
+library(magrittr)
+library(googlesheets)
+library(spatstat)
+
+suppressMessages(library(dplyr))
+gs_ls()
+tpp <- gs_title("DatiConcas")
+gs_ws_ls(tpp)
+ppwm <- tpp %>% gs_read(ws="RaccoltaFogliDati")
+# Nei tabelloni originari (1 per plot!!) il calcolo delle coordinate cartesiane è sviluppato nei fogli 'cooridinate' che, in generale, pescano i valori da 'Dati'. I casi per i quali 'b'+'c'<10m sono però corretti direttamente in 'cooridinate'!! La tabella 'corr' raccolglie le differenze riscontrate tra 'Dati' e 'cooridinate'.
+corr <- tpp %>% gs_read(ws="Correzioni",  col_types=cols(id_sogetto = col_character()))
+# apply corrections
+ppwm01 <- ppwm %>%
+  left_join(corr) %>%
+  mutate(b = ifelse(is.na(b_corr), b, b_corr),
+         c = ifelse(is.na(c_corr), c, c_corr)) %>%
+  select(-ends_with("_corr"))
+```
+
+
+
+# Compute plot-wise coordinates (x, y)
+```{r process_coordinates}
+
+# compute subplots origins
+side <- 1:5
+subplot_origin <- expand.grid(c=side, r=side) %>%
+  mutate(subplot = paste(LETTERS[c], r, sep=""),
+         x0 = 1000 * (c - 1),
+         y0 = 1000 * (r - 1)) %>%
+  select(-r, -c)
+
+# distances are registered as cm (integers)
+a = 10*100
+
+ppwm02 <- ppwm01 %>%
+# compute local cartesian coordiantes (lx, ly)
+  mutate(lx = (a^2 - b^2 + c^2)/(2*a),
+         ly = sqrt((4*a^2*c^2 - (a^2 - b^2 + c^2)^2))/(2*a)) %>%
+#(alternativa di Laura) ly = sqrt((2*(a^2*b^2 + a^2*c^2 + b^2*c^2)- (a^4 + b^4 + c^4))/(2*a)))
+# compute plot-wise coordinates (x, y)
+  full_join(subplot_origin) %>%
+  mutate(x = (x0 + lx), 
+         y = (y0 + ly))
+
+# CREATE one PPP object for each 'plot'
+side_l = a * length(side)
+cf <- 1/100 # conversion of "cm" to "m" 
+#               marks = .[,7:16],
+Arborea_permanent_plots <- ppwm02 %>%
+  group_by(plot) %>%
+#  filter(plot==1 & subplot=="A1") %$%
+  do(ppp = ppp(.$x * cf, .$y * cf, 
+               window = owin(xrange=c(0, side_l * cf),
+                             yrange=c(0, side_l * cf), 
+                               unitname="m"))
+  ) %>%
+  ungroup()
+```
+
+
+# Verify distribution of points
+```{r plot}
+
+plot(as.solist(Arborea_permanent_plots$ppp), main="2014Concas-Monitoring Pinus pinea regeneration, Arborea", main.panel=paste("Plot",Arborea_permanent_plots$plot))
+
+plot.with.Axis <- function(i) {
+  ungroup(Arborea_permanent_plots) %$% 
+    plot(.$ppp[[i]], main=paste("Plot", .$plot[[i]]))
+  at <- seq(0,50,10)
+  Axis(side=1, at=at)
+  Axis(side=4, at=at)
+}
+op <- par(no.readonly=T)
+par(pin= c(par()$pin[1],.7 * par()$fin[2]))
+for(i in 1:4) plot.with.Axis(i)
+par(op)
+  
+#          dbh = ifelse(is.na(dbhEO), dbhNS, sqrt(mean(dbhNS^2, dbhEO^2)))
+
+```
+
+
