@@ -42,10 +42,14 @@ suppressMessages(library(dplyr))
 gs_ls()
 tpp <- gs_title("DatiConcas")
 gs_ws_ls(tpp)
-# plot_window <- tpp %>% gs_read(ws="Anagrafica")     # opzione da completare
+plot_window <- tpp %>% gs_read(ws="Anagrafica")     
 ppwm <- tpp %>% gs_read(ws="RaccoltaFogliDati")
 # Nei tabelloni originari (1 per plot!!) il calcolo delle coordinate cartesiane è sviluppato nei fogli 'cooridinate' che, in generale, pescano i valori da 'Dati'. I casi per i quali 'b'+'c'<10m sono però corretti direttamente in 'cooridinate'!! La tabella 'corr' raccolglie le differenze riscontrate tra 'Dati' e 'cooridinate'.
 corr <- tpp %>% gs_read(ws="Correzioni",  col_types=cols(id_sogetto = col_character()))
+
+nais0 <- function(num) {
+  return(ifelse(is.na(num), 0, num))
+}
 # apply corrections
 ppwm01 <- ppwm %>%
   left_join(corr) %>%
@@ -53,12 +57,7 @@ ppwm01 <- ppwm %>%
          c = ifelse(is.na(c_corr), c, c_corr)) %>%
   select(-ends_with("_corr"))
 ```
-
-
-
-# Compute plot-wise coordinates (x, y)
-```{r process_coordinates}
-#define plots windows
+#define plots windows (old version)
 plot_window <- tribble(
   ~plot, ~x00, ~y00, ~x01, ~y01,
       1,   0,   0,  5000,  5000,
@@ -66,6 +65,10 @@ plot_window <- tribble(
       3,   0,   0,  5000,  4000,
       4,1000,   0,  2000,  5000
 )
+
+
+# Compute plot-wise coordinates (x, y)
+```{r process_coordinates}
 
 # compute subplots origins
 side <- 1:5
@@ -79,27 +82,15 @@ subplot_origin <- expand.grid(c=side, r=side) %>%
 a = 10*100
 
 
-# ppwm01$`dbhNS`[is.na(ppwm01$`dbhNS`)==TRUE] <- ppwm01$`dbhEO`[is.na(ppwm01$`dbhNS`)==TRUE]
-# ppwm01$`dbhEO`[is.na(ppwm01$`dbhEO`)==TRUE] <- ppwm01$`dbhNS`[is.na(ppwm01$`dbhEO`)==TRUE]
-#rs a cosa servono le due righe sopra? Sono da cancellare
-ppwm01$`crown_rE`[is.na(ppwm01$`crown_rE`)==TRUE] <- 0
-ppwm01$`crown_rO`[is.na(ppwm01$`crown_rO`)==TRUE] <- 0
-ppwm01$`crown_rN`[is.na(ppwm01$`crown_rN`)==TRUE] <- 0
-ppwm01$`crown_rS`[is.na(ppwm01$`crown_rS`)==TRUE] <- 0
-#rs perch? queste modifiche non le inserisci nel 'mutate' che sta sotto?
-
 ppwm02 <- ppwm01 %>%
 # compute local cartesian coordiantes (lx, ly)
   mutate(lx = (a^2 - b^2 + c^2)/(2*a),
          ly = sqrt((4*a^2*c^2 - (a^2 - b^2 + c^2)^2))/(2*a),
-         dbh = sapply(c(dbhNS, dbhEO), function(x) sqrt(mean(c(x[1]^2, x[2]^2),na.rm=T))),
-         #crown_area = pi * sqrt(rowSums(.[c(crown_rE^2,crown_rO^2,crown_rN^2,crown_rS^2)],na.rm=T))/4,
-#         crown_area = pi * (crown_rE+crown_rO+crown_rN+crown_rS)^2/16,
-    #rs  sono raggi, come sopra devi calcolare la media dei quadrati:  pi*(r^2+..+r^2)/4
-         basal_area = pi * dbh^2/4
+        #(alternativa di Laura) ly = sqrt((2*(a^2*b^2 + a^2*c^2 + b^2*c^2)- (a^4 + b^4 + c^4))/(2*a)))
+         dbh = ifelse(is.na(dbhEO),dbhNS,sqrt((dbhNS^2+dbhEO^2)/2)),
+         basal_area = pi * dbh^2/4,
+         crown_area = pi * (nais0(crown_rE^2)+nais0(crown_rO^2)+nais0(crown_rN^2)+nais0(crown_rS^2))/4
          ) %>%
-    #rs sarebbe 'area_basimetrica'?
-#(alternativa di Laura) ly = sqrt((2*(a^2*b^2 + a^2*c^2 + b^2*c^2)- (a^4 + b^4 + c^4))/(2*a)))
 # compute plot-wise coordinates (x, y)
   full_join(subplot_origin) %>%
   mutate(x = (x0 + lx), 
@@ -176,4 +167,30 @@ for(i in 1:4) chart.Correlation(marks(Arborea_permanent_plots$ppp[[i]])[, c(2:7)
 
 ```
 
+# Statistical Analysis
+
+```{r}
+
+statsanalysis <- list()
+for(tidplot in 1:4) {
+  species = unique(toupper(ppwm02$species[ppwm02$plot==tidplot]))
+  newstatsanalysis = tribble( ~species, ~mark,~NANumber, ~Media, ~Max, ~Min, ~CVPercentuale)
+  for (spec in species) {
+    for (c_mark in c("age", "h_tot", "crown_area", "dbh", "basal_area", "h_crown_ins")) {
+    newstatsanalysis = rbind(newstatsanalysis, data.frame(
+      species=spec,
+      mark=c_mark,
+      NANumber=sum(is.na(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark])),
+      Media=mean(unlist(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark]), na.rm = T),
+      Max=max(unlist(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark]), na.rm = T),
+      Min=min(unlist(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark]), na.rm = T),
+      CVPercentuale=sd(unlist(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark]), na.rm = T) /mean(unlist(ppwm02[toupper(ppwm02$species)==spec & ppwm02$plot==tidplot, c_mark]), na.rm = T)*100))
+    }
+  }
+  statsanalysis[[tidplot]] <- newstatsanalysis
+  show(paste("Plot",tidplot))
+  show(statsanalysis[[tidplot]])
+}
+
+```
 
