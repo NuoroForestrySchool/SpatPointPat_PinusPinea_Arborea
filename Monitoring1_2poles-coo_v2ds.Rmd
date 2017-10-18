@@ -3,6 +3,7 @@ title: 'Monitoring forest regeneration - 1: processing ''2 poles coordinates'''
 output:
   html_notebook: default
   html_document: default
+  pdf_document: default
 ---
 
 # Introduction
@@ -193,4 +194,33 @@ for(tidplot in 1:4) {
 }
 
 ```
+
+# Spatial Analysis
+
+```{r}
+
+for (tid in c(1,3)) {
+  show(paste("Plot:", tid))
+pltsm <- Arborea_permanent_plots$ppp[tid][[1]]
+
+species = unique(pltsm$marks$..species)
+for (s in species) {
+  
+  pltsm_s = pltsm[pltsm$marks$..species==s]
+  
+  marks(pltsm_s) <- pltsm_s$marks[3:4]
+
+  show(paste("Specie:",s))
+  
+  mcf <- function(m1, m2) {m1*m2}
+  try(plot(markcorr(pltsm_s, mcf)))
+  try(plot(markcorr(pltsm_s)))
+  try(plot(markvario(pltsm_s)))
+  try(plot(markcrosscorr(pltsm_s)))
+
+}
+}
+
+```
+
 
