@@ -55,8 +55,8 @@ nais0 <- function(num) {
 ppwm01 <- ppwm %>%
   left_join(corr) %>%
   mutate(b = ifelse(is.na(b_corr), b, b_corr),
-         c = ifelse(is.na(c_corr), c, c_corr),
-         age = ifelse(is.na(age_corr), age, age_corr)) %>%
+         c = ifelse(is.na(c_corr), c, c_corr))
+         #age = ifelse(is.na(age_corr), age, age_corr)) %>%
   select(-ends_with("_corr"))
 ```
 #define plots windows (old version)
