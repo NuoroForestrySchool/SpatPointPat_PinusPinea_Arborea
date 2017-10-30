@@ -2,7 +2,7 @@
 title: 'Monitoring forest regeneration - 1: processing ''2 poles coordinates'''
 output:
   html_notebook: default
-  html_document: default
+#  html_document: default
   pdf_document: default
 ---
 
@@ -129,7 +129,7 @@ colnamesm = Arborea_permanent_plots$ppp[[1]] %>% marks() %>% colnames()
 # marks
 plot.with.Axis <- function(p, m) {
   ungroup(Arborea_permanent_plots) %$% 
-    plot(.$ppp[[p]], main=paste("Plot", .$plot[[p]]), which.marks = m)
+  plot(.$ppp[[p]], main=paste("Plot", .$plot[[p]]), which.marks = m)
   mtext(colnamesm[m])
   at <- seq(0,50,10)
   Axis(side=1, at=at)
@@ -140,7 +140,8 @@ op <- par(no.readonly=T)
 par(pin= c(par()$pin[1],.7 * par()$fin[2]))
 for(p in 1:4) for (m in 1:nm) plot.with.Axis(p, m)
 par(op)
-  
+#  questa riga (nella versione di Davide del 30 ott) era sotto commento, non ho capitò perchè
+dbh = ifelse(is.na(dbhEO), dbhNS, sqrt(mean(dbhNS^2, dbhEO^2)))
 
 ```
 
@@ -196,6 +197,7 @@ for(tidplot in 1:4) {
 
 ```
 
+
 # Spatial Analysis
 
 ```{r}
@@ -223,5 +225,3 @@ for (s in species) {
 }
 
 ```
-
-
