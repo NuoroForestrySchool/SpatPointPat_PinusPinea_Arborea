@@ -2,7 +2,7 @@
 title: 'Monitoring forest regeneration - 1: processing ''2 poles coordinates'''
 output:
   html_notebook: default
-#  html_document: default
+  html_document: default
   pdf_document: default
 ---
 
@@ -55,7 +55,8 @@ nais0 <- function(num) {
 ppwm01 <- ppwm %>%
   left_join(corr) %>%
   mutate(b = ifelse(is.na(b_corr), b, b_corr),
-         c = ifelse(is.na(c_corr), c, c_corr)) %>%
+         c = ifelse(is.na(c_corr), c, c_corr))
+         #age = ifelse(is.na(age_corr), age, age_corr)) %>%
   select(-ends_with("_corr"))
 ```
 #define plots windows (old version)
@@ -125,11 +126,18 @@ Arborea_permanent_plots <- ppwm02 %>%
 # x,y coorinates
 plot(as.solist(Arborea_permanent_plots$ppp), main="2014Concas-Monitoring Pinus pinea regeneration, Arborea", main.panel=paste("Plot",Arborea_permanent_plots$plot), use.marks=F)
 
+pin_specie = list("PINPIN" , "CEPPAIA")
+alberi_specie = list("EUC")
+arbusti_specie = list("PHYANG", "PISLEN", "CALVIL", "DAFGNI",  "QUEILE",  "ALYALY",  "CISSAL", "OLEEUR", "RHAALA" , "ERIARB")
+gruppi_specie = list(pin_specie, alberi_specie, arbusti_specie)
+for(gruppox in gruppi_specie) {
+show(gruppox)
 colnamesm = Arborea_permanent_plots$ppp[[1]] %>% marks() %>% colnames()
 # marks
 plot.with.Axis <- function(p, m) {
-  ungroup(Arborea_permanent_plots) %$% 
-  plot(.$ppp[[p]], main=paste("Plot", .$plot[[p]]), which.marks = m)
+#  ungroup(Arborea_permanent_plots) %$% 
+#    plot(.$ppp[[p]], main=paste("Plot", .$plot[[p]]), which.marks = m)
+  plot(Arborea_permanent_plots$ppp[[p]][toupper(Arborea_permanent_plots$ppp[[p]]$marks$..species) %in% gruppox], main=paste("Plot", p), which.marks = m)
   mtext(colnamesm[m])
   at <- seq(0,50,10)
   Axis(side=1, at=at)
@@ -140,8 +148,8 @@ op <- par(no.readonly=T)
 par(pin= c(par()$pin[1],.7 * par()$fin[2]))
 for(p in 1:4) for (m in 1:nm) plot.with.Axis(p, m)
 par(op)
-#  questa riga (nella versione di Davide del 30 ott) era sotto commento, non ho capitò perchè
-dbh = ifelse(is.na(dbhEO), dbhNS, sqrt(mean(dbhNS^2, dbhEO^2)))
+}
+  
 
 ```
 
@@ -197,23 +205,23 @@ for(tidplot in 1:4) {
 
 ```
 
-
 # Spatial Analysis
 
 ```{r}
 
-for (tid in c(1,3)) {
+for (tid in 1:4) {
   show(paste("Plot:", tid))
 pltsm <- Arborea_permanent_plots$ppp[tid][[1]]
 
 species = unique(pltsm$marks$..species)
-for (s in species) {
+#for (s in species) {
+for(gruppox in gruppi_specie) {
   
-  pltsm_s = pltsm[pltsm$marks$..species==s]
+  pltsm_s = pltsm[toupper(pltsm$marks$..species) %in% gruppox]
   
   marks(pltsm_s) <- pltsm_s$marks[3:4]
 
-  show(paste("Specie:",s))
+  show(paste("Specie:",gruppox))
   
   mcf <- function(m1, m2) {m1*m2}
   try(plot(markcorr(pltsm_s, mcf)))
@@ -225,3 +233,5 @@ for (s in species) {
 }
 
 ```
+
+
